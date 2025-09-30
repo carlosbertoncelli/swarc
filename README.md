@@ -5,6 +5,7 @@ A high-performance implementation of the Hierarchical Navigable Small World (HNS
 ## Features
 
 - **Fast Approximate Nearest Neighbor Search**: Efficient k-NN search with logarithmic time complexity
+- **Multiple Distance Metrics**: Support for Euclidean and Cosine distance calculations
 - **Document Linking**: Associate embeddings with external data using a flexible document structure
 - **Dynamic Operations**: Insert, remove, and rebalance the index at runtime
 - **Modular Architecture**: Clean separation of concerns with dedicated modules for different operations
@@ -28,7 +29,7 @@ Add this to your `Cargo.toml`:
 swarc = { path = "path/to/swarc" }
 ```
 
-Or if using from crates.io (when published):
+Or if using from crates.io:
 
 ```toml
 [dependencies]
@@ -38,13 +39,16 @@ swarc = "0.1.0"
 ## Quick Start
 
 ```rust
-use swarc::{HNSWIndex, Document};
+use swarc::{HNSWIndex, Document, DistanceMetric};
 use rand::Rng;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new HNSW index
+    // Create a new HNSW index with Euclidean distance (default)
     // Parameters: dimension, max_connections, ef_construction
     let mut index = HNSWIndex::new(128, 16, 200);
+    
+    // Or create with a specific distance metric
+    let mut index_cosine = HNSWIndex::new_with_distance(128, 16, 200, DistanceMetric::Cosine);
     
     // Create a document with external data
     let document = Document {
@@ -88,17 +92,34 @@ pub struct Document<T> {
 ```
 A wrapper for external data associated with embeddings.
 
+#### `DistanceMetric`
+```rust
+pub enum DistanceMetric {
+    Euclidean,
+    Cosine,
+}
+```
+Distance metrics supported by the HNSW index.
+
 #### `HNSWIndex<T>`
 The main index structure that provides all HNSW operations.
 
 ### Main Methods
 
 #### `new(dim: usize, m: usize, ef_construction: usize) -> HNSWIndex<T>`
-Creates a new HNSW index.
+Creates a new HNSW index with Euclidean distance (default).
 
 - `dim`: Dimensionality of the embedding vectors
 - `m`: Maximum number of connections per node (except layer 0)
 - `ef_construction`: Size of dynamic candidate list during construction
+
+#### `new_with_distance(dim: usize, m: usize, ef_construction: usize, distance_metric: DistanceMetric) -> HNSWIndex<T>`
+Creates a new HNSW index with a specific distance metric.
+
+- `dim`: Dimensionality of the embedding vectors
+- `m`: Maximum number of connections per node (except layer 0)
+- `ef_construction`: Size of dynamic candidate list during construction
+- `distance_metric`: The distance metric to use (`DistanceMetric::Euclidean` or `DistanceMetric::Cosine`)
 
 #### `insert(id: String, embedding: Vec<f32>, document: Option<Document<T>>) -> Result<(), String>`
 Inserts a new node into the index.
@@ -148,7 +169,7 @@ The implementation is organized into several modules:
 - **Search Complexity**: O(log N) for approximate nearest neighbor search
 - **Insertion Complexity**: O(log N) for adding new nodes
 - **Memory Usage**: O(N × M) where N is the number of nodes and M is the average connections per node
-- **Distance Metric**: Currently uses Euclidean distance (L2 norm)
+- **Distance Metrics**: Supports Euclidean distance (L2 norm) and Cosine distance
 
 ### Performance Benchmarks
 
@@ -191,13 +212,37 @@ SWARC has been benchmarked with high-dimensional embeddings (3072 dimensions) ac
 - Higher layers provide long-range navigation
 - Lower layers provide fine-grained search
 
+### Distance Metrics
+
+#### Euclidean Distance (Default)
+- Measures straight-line distance in vector space
+- Good for general-purpose similarity search
+- Sensitive to vector magnitude
+- Formula: `sqrt(sum((a_i - b_i)²))`
+
+#### Cosine Distance
+- Measures angular similarity between vectors
+- Good for text embeddings and normalized vectors
+- Magnitude-invariant (only considers direction)
+- Formula: `1 - (dot_product / (norm_a * norm_b))`
+
+**When to use each metric:**
+- **Euclidean**: When vector magnitude matters (e.g., image embeddings, raw feature vectors)
+- **Cosine**: When only direction matters (e.g., text embeddings, normalized vectors)
+
 ## Examples
 
 ### Basic Usage
 ```rust
+// Euclidean distance (default)
 let mut index = HNSWIndex::new(128, 16, 200);
 index.insert("node1".to_string(), vec![0.1, 0.2, 0.3], None)?;
 let results = index.search(&vec![0.1, 0.2, 0.3], 1);
+
+// Cosine distance
+let mut index_cosine = HNSWIndex::new_with_distance(128, 16, 200, DistanceMetric::Cosine);
+index_cosine.insert("node1".to_string(), vec![0.1, 0.2, 0.3], None)?;
+let results_cosine = index_cosine.search(&vec![0.1, 0.2, 0.3], 1);
 ```
 
 ### Performance Testing
@@ -216,6 +261,37 @@ let doc = Document {
     data: Article { title: "AI Research", content: "..." },
 };
 index.insert("node1".to_string(), embedding, Some(doc))?;
+```
+
+### Distance Metric Comparison
+```rust
+use swarc::{HNSWIndex, DistanceMetric};
+
+// Create indices with different distance metrics
+let mut index_euclidean = HNSWIndex::new_with_distance(128, 16, 200, DistanceMetric::Euclidean);
+let mut index_cosine = HNSWIndex::new_with_distance(128, 16, 200, DistanceMetric::Cosine);
+
+// Insert the same data
+let embedding1 = vec![1.0, 0.0, 0.0];
+let embedding2 = vec![2.0, 0.0, 0.0]; // Same direction, different magnitude
+let embedding3 = vec![0.0, 1.0, 0.0]; // Orthogonal direction
+
+index_euclidean.insert("doc1".to_string(), embedding1.clone(), None)?;
+index_euclidean.insert("doc2".to_string(), embedding2.clone(), None)?;
+index_euclidean.insert("doc3".to_string(), embedding3.clone(), None)?;
+
+index_cosine.insert("doc1".to_string(), embedding1.clone(), None)?;
+index_cosine.insert("doc2".to_string(), embedding2.clone(), None)?;
+index_cosine.insert("doc3".to_string(), embedding3.clone(), None)?;
+
+// Search with query vector
+let query = vec![0.5, 0.0, 0.0];
+let results_euclidean = index_euclidean.search(&query, 2);
+let results_cosine = index_cosine.search(&query, 2);
+
+// Results will differ based on distance metric:
+// Euclidean: doc1 (closest), doc2 (farther due to magnitude)
+// Cosine: doc1 and doc2 (equally close due to same direction)
 ```
 
 ### Batch Operations
@@ -237,13 +313,12 @@ let removed = index.remove_multiple(&ids)?;
 ## Limitations and Future Work
 
 ### Current Limitations
-- Only supports Euclidean distance (L2 norm)
 - Rebalancing is a placeholder implementation
 - No persistence/serialization of the index structure
-- No support for different distance metrics
+- Limited to Euclidean and Cosine distance metrics
 
 ### Planned Enhancements
-- Support for multiple distance metrics (cosine, inner product, etc.)
+- Support for additional distance metrics (inner product, Manhattan, etc.)
 - Index persistence and loading
 - Advanced rebalancing strategies
 - Parallel search and insertion
