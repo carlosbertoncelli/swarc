@@ -1,0 +1,15 @@
+[package]
+name = "swarc"
+version = "0.1.0"
+edition = "2021"
+description = "Small World Approximate Recall Crate - A high-performance HNSW implementation in Rust"
+authors = ["Carlos Bertoncelli <cabertoncelli@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/carlosbertoncelli/swarc"
+keywords = ["hnsw", "nearest-neighbor", "search", "vector", "similarity"]
+categories = ["algorithms", "data-structures"]
+
+[dependencies]
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
