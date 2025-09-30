@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::types::HNSWNode;
+use crate::types::{HNSWNode, DistanceMetric, Distance};
 
 /// HNSW Index structure
 #[derive(Debug)]
@@ -12,11 +12,17 @@ pub struct HNSWIndex<T> {
     pub ef_construction: usize, // size of dynamic candidate list
     pub(crate) ml: f32, // normalization factor for level generation
     pub entry_point: Option<usize>, // index of entry point
+    pub distance_metric: DistanceMetric, // distance metric to use
 }
 
 impl<T> HNSWIndex<T> {
-    /// Create a new HNSW index
+    /// Create a new HNSW index with Euclidean distance
     pub fn new(_dim: usize, m: usize, ef_construction: usize) -> Self {
+        Self::new_with_distance(_dim, m, ef_construction, DistanceMetric::Euclidean)
+    }
+
+    /// Create a new HNSW index with specified distance metric
+    pub fn new_with_distance(_dim: usize, m: usize, ef_construction: usize, distance_metric: DistanceMetric) -> Self {
         let max_layers = (f32::ln(1000.0) / f32::ln(2.0)) as usize + 1; // reasonable default
         let m_max = m;
         let ml = 1.0 / f32::ln(2.0);
@@ -30,16 +36,13 @@ impl<T> HNSWIndex<T> {
             ef_construction,
             ml,
             entry_point: None,
+            distance_metric,
         }
     }
 
-    /// Calculate Euclidean distance between two vectors
-    pub fn distance(a: &[f32], b: &[f32]) -> f32 {
-        a.iter()
-            .zip(b.iter())
-            .map(|(x, y)| (x - y).powi(2))
-            .sum::<f32>()
-            .sqrt()
+    /// Calculate distance between two vectors using the configured distance metric
+    pub fn distance(&self, a: &[f32], b: &[f32]) -> f32 {
+        self.distance_metric.distance(a, b)
     }
 
     /// Generate random level for a new node

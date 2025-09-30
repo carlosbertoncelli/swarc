@@ -1,5 +1,5 @@
 use swarc::index::HNSWIndex;
-use swarc::types::Document;
+use swarc::types::{Document, DistanceMetric};
 
 #[test]
 fn test_index_creation() {
@@ -27,15 +27,15 @@ fn test_index_creation_with_different_parameters() {
 
 #[test]
 fn test_distance_calculation() {
-    let _index: HNSWIndex<String> = HNSWIndex::new(3, 16, 200);
+    let index: HNSWIndex<String> = HNSWIndex::new(3, 16, 200);
     
     let a = vec![0.0, 0.0, 0.0];
     let b = vec![3.0, 4.0, 0.0];
     let c = vec![1.0, 1.0, 1.0];
     
-    let dist_ab = HNSWIndex::<String>::distance(&a, &b);
-    let dist_ac = HNSWIndex::<String>::distance(&a, &c);
-    let dist_bc = HNSWIndex::<String>::distance(&b, &c);
+    let dist_ab = index.distance(&a, &b);
+    let dist_ac = index.distance(&a, &c);
+    let dist_bc = index.distance(&b, &c);
     
     // Distance from (0,0,0) to (3,4,0) should be 5
     assert!((dist_ab - 5.0).abs() < 1e-6);
@@ -49,26 +49,26 @@ fn test_distance_calculation() {
 
 #[test]
 fn test_distance_symmetry() {
-    let _index: HNSWIndex<String> = HNSWIndex::new(3, 16, 200);
+    let index: HNSWIndex<String> = HNSWIndex::new(3, 16, 200);
     
     let a = vec![1.0, 2.0, 3.0];
     let b = vec![4.0, 5.0, 6.0];
     
-    let dist_ab = HNSWIndex::<String>::distance(&a, &b);
-    let dist_ba = HNSWIndex::<String>::distance(&b, &a);
+    let dist_ab = index.distance(&a, &b);
+    let dist_ba = index.distance(&b, &a);
     
     assert!((dist_ab - dist_ba).abs() < 1e-6);
 }
 
 #[test]
 fn test_distance_zero_vectors() {
-    let _index: HNSWIndex<String> = HNSWIndex::new(3, 16, 200);
+    let index: HNSWIndex<String> = HNSWIndex::new(3, 16, 200);
     
     let zero = vec![0.0, 0.0, 0.0];
     let a = vec![1.0, 2.0, 3.0];
     
-    let dist_zero_zero = HNSWIndex::<String>::distance(&zero, &zero);
-    let dist_zero_a = HNSWIndex::<String>::distance(&zero, &a);
+    let dist_zero_zero = index.distance(&zero, &zero);
+    let dist_zero_a = index.distance(&zero, &a);
     
     assert!((dist_zero_zero - 0.0).abs() < 1e-6);
     assert!((dist_zero_a - 14.0_f32.sqrt()).abs() < 1e-6);
@@ -154,4 +154,59 @@ fn test_index_with_different_data_types() {
     assert_eq!(index_string.len(), 1);
     assert_eq!(index_number.len(), 1);
     assert_eq!(index_vector.len(), 1);
+}
+
+#[test]
+fn test_cosine_distance() {
+    let index: HNSWIndex<String> = HNSWIndex::new_with_distance(3, 16, 200, DistanceMetric::Cosine);
+    
+    let a = vec![1.0, 0.0, 0.0];
+    let b = vec![0.0, 1.0, 0.0];
+    let c = vec![1.0, 1.0, 0.0];
+    
+    // Distance between orthogonal vectors should be 1.0 (cosine similarity = 0)
+    let dist_ab = index.distance(&a, &b);
+    assert!((dist_ab - 1.0).abs() < 1e-6);
+    
+    // Distance between identical vectors should be 0.0 (cosine similarity = 1)
+    let dist_aa = index.distance(&a, &a);
+    assert!((dist_aa - 0.0).abs() < 1e-6);
+    
+    // Distance between a and c should be 1 - cos(45°) = 1 - sqrt(2)/2 ≈ 0.293
+    let dist_ac = index.distance(&a, &c);
+    let expected = 1.0 - (1.0 / 2.0_f32.sqrt());
+    assert!((dist_ac - expected).abs() < 1e-6);
+}
+
+#[test]
+fn test_distance_metric_creation() {
+    // Test Euclidean distance (default)
+    let index_euclidean: HNSWIndex<String> = HNSWIndex::new(3, 16, 200);
+    assert_eq!(index_euclidean.distance_metric, DistanceMetric::Euclidean);
+    
+    // Test explicit Euclidean distance
+    let index_euclidean_explicit: HNSWIndex<String> = HNSWIndex::new_with_distance(3, 16, 200, DistanceMetric::Euclidean);
+    assert_eq!(index_euclidean_explicit.distance_metric, DistanceMetric::Euclidean);
+    
+    // Test Cosine distance
+    let index_cosine: HNSWIndex<String> = HNSWIndex::new_with_distance(3, 16, 200, DistanceMetric::Cosine);
+    assert_eq!(index_cosine.distance_metric, DistanceMetric::Cosine);
+}
+
+#[test]
+fn test_distance_metric_consistency() {
+    let a = vec![1.0, 2.0, 3.0];
+    let b = vec![4.0, 5.0, 6.0];
+    
+    // Euclidean distance should be symmetric
+    let index_euclidean: HNSWIndex<String> = HNSWIndex::new_with_distance(3, 16, 200, DistanceMetric::Euclidean);
+    let dist_ab_euclidean = index_euclidean.distance(&a, &b);
+    let dist_ba_euclidean = index_euclidean.distance(&b, &a);
+    assert!((dist_ab_euclidean - dist_ba_euclidean).abs() < 1e-6);
+    
+    // Cosine distance should be symmetric
+    let index_cosine: HNSWIndex<String> = HNSWIndex::new_with_distance(3, 16, 200, DistanceMetric::Cosine);
+    let dist_ab_cosine = index_cosine.distance(&a, &b);
+    let dist_ba_cosine = index_cosine.distance(&b, &a);
+    assert!((dist_ab_cosine - dist_ba_cosine).abs() < 1e-6);
 }

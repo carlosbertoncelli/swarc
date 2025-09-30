@@ -13,7 +13,7 @@ impl<T> HNSWIndex<T> {
             if let Some(node) = self.nodes.get(ep) {
                 // For layer 0, all nodes should be accessible
                 if layer == 0 || layer < node.connections.len() {
-                    let dist = Self::distance(query, &node.embedding);
+                    let dist = self.distance(query, &node.embedding);
                     candidates.push((ep, dist));
                     visited.insert(ep);
                 }
@@ -43,7 +43,7 @@ impl<T> HNSWIndex<T> {
                         visited.insert(neighbor_id);
                         
                         if let Some(neighbor) = self.nodes.get(neighbor_id) {
-                            let dist = Self::distance(query, &neighbor.embedding);
+                            let dist = self.distance(query, &neighbor.embedding);
                             
                             if candidates.len() < k || dist < candidates.last().unwrap().1 {
                                 candidates.push((neighbor_id, dist));

@@ -150,6 +150,28 @@ The implementation is organized into several modules:
 - **Memory Usage**: O(N × M) where N is the number of nodes and M is the average connections per node
 - **Distance Metric**: Currently uses Euclidean distance (L2 norm)
 
+### Performance Benchmarks
+
+SWARC has been benchmarked with high-dimensional embeddings (3072 dimensions) across various dataset sizes. See the [performance tests](performance_tests/) directory for detailed benchmarks and visualizations.
+
+**Key Performance Metrics:**
+- **Insertion Throughput**: Up to millions of embeddings per hour
+- **Search Time**: Sub-millisecond query times for large datasets
+- **Memory Efficiency**: Linear scaling with dataset size
+- **Scalability**: Tested up to 5 million 3072-dimensional embeddings
+
+![Insertion Performance](performance_tests/insertion_time.png)
+*Insertion time scales logarithmically with dataset size*
+
+![Search Performance](performance_tests/search_time.png)
+*Search time remains relatively constant across dataset sizes*
+
+![Memory Usage](performance_tests/memory_usage.png)
+*Memory usage scales linearly with dataset size*
+
+![Throughput](performance_tests/throughput.png)
+*Insertion throughput across different dataset sizes*
+
 ## Configuration Parameters
 
 ### `m` (Maximum Connections)
@@ -176,6 +198,15 @@ The implementation is organized into several modules:
 let mut index = HNSWIndex::new(128, 16, 200);
 index.insert("node1".to_string(), vec![0.1, 0.2, 0.3], None)?;
 let results = index.search(&vec![0.1, 0.2, 0.3], 1);
+```
+
+### Performance Testing
+```bash
+# Run benchmarks with millions of 3072-dimensional embeddings
+cargo run --bin benchmark
+
+# Generate performance plots
+cargo run --bin plot_results
 ```
 
 ### With Documents
